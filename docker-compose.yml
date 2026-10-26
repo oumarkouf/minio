@@ -1,0 +1,28 @@
+services:
+  minio:
+    # Les images officielles minio/minio (quay.io, docker.io) ne sont plus tirables anonymement : image Chainguard
+    image: cgr.dev/chainguard/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: admin123
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # Console web
+    volumes:
+      - minio-data:/data
+
+  api:
+    build: .
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: admin123
+    ports:
+      - "8080:8080"
+    depends_on:
+      - minio
+
+volumes:
+  minio-data:

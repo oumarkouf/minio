@@ -8,16 +8,24 @@ MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "admin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "admin123")
 REGION = os.getenv("MINIO_REGION", "us-east-1")
+# URL joignable depuis le navigateur (dans Docker, MINIO_ENDPOINT = http://minio:9000 n'est pas résolvable depuis l'hôte)
+MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", MINIO_ENDPOINT)
 
-# Initialize S3 client
-s3 = boto3.client(
-    "s3",
-    endpoint_url=MINIO_ENDPOINT,
-    aws_access_key_id=MINIO_ACCESS_KEY,
-    aws_secret_access_key=MINIO_SECRET_KEY,
-    config=Config(signature_version="s3v4"),
-    region_name=REGION
-)
+
+def make_client(endpoint: str):
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=MINIO_ACCESS_KEY,
+        aws_secret_access_key=MINIO_SECRET_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name=REGION
+    )
+
+
+# Client interne (API -> MinIO) et client utilisé uniquement pour signer les URLs publiques
+s3 = make_client(MINIO_ENDPOINT)
+s3_public = make_client(MINIO_PUBLIC_ENDPOINT)
 
 app = FastAPI(title="MinIO Query Service")
 
@@ -55,7 +63,7 @@ async def upload_file(bucket_name: str, file: UploadFile = File(...)):
 def download_file(bucket_name: str, filename: str):
     """Generate a presigned URL to download a file"""
     try:
-        url = s3.generate_presigned_url(
+        url = s3_public.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket_name, "Key": filename},
             ExpiresIn=3600  # 1 hour
